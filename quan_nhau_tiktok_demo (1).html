@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Quán Nhậu 3D — TikTok LIVE Prototype</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--gold:#ffd76a;--red:#e73525;--ink:#21140e;--panel:rgba(24,17,14,.88);--green:#59d69a}
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101820;color:#fff;font-family:system-ui,Segoe UI,Arial,sans-serif}
@@ -61,12 +62,12 @@ button:active{transform:translateY(3px);box-shadow:0 1px 0 #79501c}
  <div class="sky"></div><div class="lanterns"><i class="light"></i><i class="light"></i><i class="light"></i><i class="light"></i></div>
  <div class="backbuild"><div class="windows"><i></i><i></i><i></i><i></i></div><div class="sign">QUÁN NHẬU 3D</div></div>
  <div class="floor"></div><div class="counter"></div>
- <div class="hud brand">🍻 QUÁN NHẬU BÌNH DÂN <small style="display:block;font-size:10px;color:#f5e5c4;letter-spacing:0">TIKTOK LIVE • BẢN CHẠY THỬ</small></div>
+ <div class="hud brand">🍻 QUÁN NHẬU BÌNH DÂN <small style="display:block;font-size:10px;color:#f5e5c4;letter-spacing:0">TIKTOK LIVE • BẢN REALTIME</small></div>
  <div class="hud stats"><span class="stat">🟢 <b id="guestCount">0</b> khách</span><span class="stat">🪙 <b id="coins">0</b></span><span class="stat">⏱ <b id="clock">00:00</b></span></div>
  <div class="hud feed"><h3>💬 BÌNH LUẬN LIVE</h3><div id="feed"></div></div>
  <div class="hud leader"><h3>👑 BẢNG VÀNG BỢM NHẬU</h3><div id="leader"></div></div>
  <div class="tables" id="tables"></div>
- <div class="footnote">Bản demo: nút bên dưới mô phỏng bình luận/quà tặng — chưa kết nối TikTok thật.</div>
+ <div class="footnote">Đồng bộ Realtime Supabase kết nối nhiều người chơi cùng lúc.</div>
  <div class="controls">
   <button onclick="openJoin()">➕ Vào quán</button><button onclick="simulate('bia')">🍺 Gọi bia</button><button onclick="simulate('đậu phộng')">🥜 Gọi đậu phộng</button><button onclick="gift()">🎁 Tặng quà</button><button class="secondary" onclick="openComment()">💬 Thử bình luận</button><button class="secondary" onclick="toggleFullscreen()">⛶ Toàn màn hình</button>
  </div>
@@ -75,28 +76,150 @@ button:active{transform:translateY(3px);box-shadow:0 1px 0 #79501c}
  <div class="modal" id="commentModal"><div class="dialog"><h2>💬 Mô phỏng bình luận</h2><p>Thử nhập: “Tùng”, “bia”, “đậu phộng”, “vào quán”.</p><input id="commentText" placeholder="Nhập bình luận..."><button onclick="sendComment()">Gửi bình luận</button> <button class="secondary" onclick="closeModal()">Đóng</button></div></div>
 </div>
 <script>
+const SUPABASE_URL = 'https://qsobocwyjbnvyfgteggh.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_47139Ctv-4Z0XYltOhfiew_VdyVIAJB';
+let supabase = null;
+
 const names=['Minh Anh','Hoàng Lộc','Bé Bông','Quốc Anh','Thiên Kim','Hiếu Điện Nước','Tèo em','Lạc Vĩnh'];
 const emojis=['🧑🏻','👨🏻','👩🏻','🧔🏻','👨🏽','👩🏼','🧑🏽','👨🏼'];
-let guests=[],scores={},coins=0,elapsed=0,activeName='Khách mới';
+let guests=[],scores={},coins=0,elapsed=0,myPlayerId=null;
 const tableRoot=document.getElementById('tables');
 for(let i=1;i<=6;i++){tableRoot.insertAdjacentHTML('beforeend',`<div class="table" id="table${i}" onclick="chooseTable(${i})"><div class="tablelabel">BÀN ${i} · <span id="seat${i}">0/4</span></div><div class="seats" id="seats${i}"></div><div class="top"></div><div class="leg l"></div><div class="leg r"></div><div class="food" id="food${i}">🍲</div></div>`)}
+
 function toast(s){let t=document.getElementById('toast');t.textContent=s;t.classList.add('show');clearTimeout(window.tt);window.tt=setTimeout(()=>t.classList.remove('show'),1900)}
 function addFeed(s){let f=document.getElementById('feed');f.insertAdjacentHTML('afterbegin',`<div class="feedline">${new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})} · ${esc(s)}</div>`);while(f.children.length>5)f.lastChild.remove()}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function render(){document.getElementById('guestCount').textContent=guests.length;document.getElementById('coins').textContent=coins.toLocaleString('vi-VN');for(let i=1;i<=6;i++){let arr=guests.filter(g=>g.table===i);document.getElementById('seat'+i).textContent=arr.length+'/4';document.getElementById('seats'+i).innerHTML=arr.map(g=>`<div class="guest" title="${esc(g.name)}"><div class="avatar">${g.emoji}</div><span class="guestname">${esc(g.name)}</span><span class="drink">${g.drink||''}</span></div>`).join('')}let top=Object.entries(scores).sort((a,b)=>b[1]-a[1]).slice(0,5);document.getElementById('leader').innerHTML=top.length?top.map(([n,v],i)=>`<div class="rank"><span>${i+1}. ${esc(n)}</span><b>${v} ⭐</b></div>`).join(''):'<div class="rank">Chưa có khách xếp hạng</div>'}
-function addGuest(name){if(guests.some(g=>g.name.toLowerCase()===name.toLowerCase())){toast(name+' đã ở trong quán!');return}let table=0;for(let i=1;i<=6;i++)if(guests.filter(g=>g.table===i).length<4){table=i;break}if(!table){toast('Quán đã kín 24 chỗ!');return}let g={name,table,emoji:emojis[Math.floor(Math.random()*emojis.length)],drink:''};guests.push(g);scores[name]??=0;coins+=5;addFeed(name+' đã vào Bàn '+table);render();toast('🍻 '+name+' đã vào Bàn '+table)}
-function openJoin(){document.getElementById('joinModal').classList.add('open');document.getElementById('joinName').focus()}
-function openComment(){document.getElementById('commentModal').classList.add('open');document.getElementById('commentText').focus()}
-function closeModal(){document.querySelectorAll('.modal').forEach(x=>x.classList.remove('open'))}
-function joinGuest(){let n=document.getElementById('joinName').value.trim();if(!n)return toast('Nhập tên trước nhé!');addGuest(n);closeModal()}
-function sendComment(){let s=document.getElementById('commentText').value.trim();if(!s)return;processComment(s);document.getElementById('commentText').value='';closeModal()}
-function processComment(raw){let s=raw.trim(),low=s.toLowerCase();addFeed('💬 '+s);let name=s.split(/\s+/)[0].replace(/^@/,'');if(/vào quán|vào bàn|join/i.test(low)){addGuest(name);return}let g=guests.find(x=>x.name.toLowerCase()===name.toLowerCase())||guests[guests.length-1];if(/bia|beer/.test(low)){if(!g){addGuest(name);g=guests[guests.length-1]}if(g){g.drink='🍺';scores[g.name]=(scores[g.name]||0)+2;coins+=2;toast('🍺 Rót bia cho '+g.name);render()}return}if(/đậu phộng|lac|lạc|peanut/.test(low)){if(!g){addGuest(name);g=guests[guests.length-1]}if(g){document.getElementById('food'+g.table).textContent='🥜';scores[g.name]=(scores[g.name]||0)+2;coins+=2;toast('🥜 Đậu phộng lên bàn '+g.table);render()}return}if(!guests.some(x=>x.name.toLowerCase()===name.toLowerCase()))addGuest(name);else{scores[name]=(scores[name]||0)+1;coins++;render()}}
+
+function render(){
+  document.getElementById('guestCount').textContent=guests.length;
+  document.getElementById('coins').textContent=coins.toLocaleString('vi-VN');
+  for(let i=1;i<=6;i++){
+    let arr=guests.filter(g=>g.table===i);
+    document.getElementById('seat'+i).textContent=arr.length+'/4';
+    document.getElementById('seats'+i).innerHTML=arr.map(g=>`<div class="guest" title="${esc(g.name)}"><div class="avatar">${g.emoji}</div><span class="guestname">${esc(g.name)}</span><span class="drink">${g.drink||''}</span></div>`).join('');
+  }
+  let top=Object.entries(scores).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  document.getElementById('leader').innerHTML=top.length?top.map(([n,v],i)=>`<div class="rank"><span>${i+1}. ${esc(n)}</span><b>${v} ⭐</b></div>`).join(''):'<div class="rank">Chưa có khách xếp hạng</div>';
+}
+
+async function fetchPlayersFromDB(){
+  if(!supabase) return;
+  const { data, error } = await supabase.from('game_players').select('*');
+  if(!error && data){
+    guests = data.map(item => ({
+      id: item.id,
+      name: item.name || 'Khách',
+      table: item.table_id || 1,
+      emoji: item.emoji || '🧑🏻',
+      drink: item.drink || ''
+    }));
+    render();
+  }
+}
+
+async function initGame(){
+  if(window.supabase){
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    try {
+      const { data, error } = await supabase.auth.signInAnonymously();
+      if(!error && data && data.user){
+        myPlayerId = data.user.id;
+      }
+    } catch(e) {
+      console.error(e);
+    }
+    await fetchPlayersFromDB();
+    supabase
+      .channel('room-game-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'game_players' }, payload => {
+        fetchPlayersFromDB();
+      })
+      .subscribe();
+  }
+}
+
+async function addGuest(name){
+  if(guests.some(g=>g.name.toLowerCase()===name.toLowerCase())){toast(name+' đã ở trong quán!');return}
+  let table=0;
+  for(let i=1;i<=6;i++) if(guests.filter(g=>g.table===i).length<4){table=i;break}
+  if(!table){toast('Quán đã kín 24 chỗ!');return}
+  let randomEmoji = emojis[Math.floor(Math.random()*emojis.length)];
+  
+  if(supabase && myPlayerId){
+    const { error } = await supabase.from('game_players').upsert({
+      id: myPlayerId,
+      name: name,
+      table_id: table,
+      emoji: randomEmoji,
+      drink: '',
+      updated_at: new Date()
+    });
+    if(error){
+      console.error('Lỗi khi lưu Supabase:', error);
+      // Nếu lỗi database/RLS thì vẫn cho chơi offline tạm
+      guests.push({id: myPlayerId, name, table, emoji: randomEmoji, drink:''});
+    }
+  } else {
+    guests.push({name, table, emoji: randomEmoji, drink:''});
+  }
+  
+  scores[name]??=0;
+  coins+=5;
+  addFeed(name+' đã vào Bàn '+table);
+  render();
+  toast('🍻 '+name+' đã vào Bàn '+table);
+}
+
+function openJoin(){
+  document.getElementById('joinModal').classList.add('open');
+  document.getElementById('joinName').focus();
+}
+function openComment(){
+  document.getElementById('commentModal').classList.add('open');
+  document.getElementById('commentText').focus();
+}
+function closeModal(){
+  document.querySelectorAll('.modal').forEach(x=>x.classList.remove('open'));
+}
+function joinGuest(){
+  let n=document.getElementById('joinName').value.trim();
+  if(!n) return toast('Nhập tên trước nhé!');
+  addGuest(n);
+  closeModal();
+}
+function sendComment(){
+  let s=document.getElementById('commentText').value.trim();
+  if(!s)return;
+  processComment(s);
+  document.getElementById('commentText').value='';
+  closeModal();
+}
+function processComment(raw){
+  let s=raw.trim(),low=s.toLowerCase();addFeed('💬 '+s);
+  let name=s.split(/\s+/)[0].replace(/^@/,'');
+  if(/vào quán|vào bàn|join/i.test(low)){addGuest(name);return}
+  let g=guests.find(x=>x.name.toLowerCase()===name.toLowerCase())||guests[guests.length-1];
+  if(/bia|beer/.test(low)){
+    if(!g){addGuest(name);g=guests[guests.length-1]}
+    if(g){g.drink='🍺';scores[g.name]=(scores[g.name]||0)+2;coins+=2;toast('🍺 Rót bia cho '+g.name);render()}
+    return
+  }
+  if(/đậu phộng|lac|lạc|peanut/.test(low)){
+    if(!g){addGuest(name);g=guests[guests.length-1]}
+    if(g){document.getElementById('food'+g.table).textContent='🥜';scores[g.name]=(scores[g.name]||0)+2;coins+=2;toast('🥜 Đậu phộng lên bàn '+g.table);render()}
+    return
+  }
+  if(!guests.some(x=>x.name.toLowerCase()===name.toLowerCase()))addGuest(name);
+  else{scores[name]=(scores[name]||0)+1;coins++;render()}
+}
 function simulate(type){let g=guests[Math.floor(Math.random()*guests.length)];if(!g){addGuest(names[Math.floor(Math.random()*names.length)]);g=guests[0]}processComment(g.name+' '+type)}
 function gift(){let g=guests[Math.floor(Math.random()*guests.length)];if(!g){addGuest('Đại gia LIVE');g=guests[0]}scores[g.name]=(scores[g.name]||0)+10;coins+=20;addFeed('🎁 Quà tặng từ '+g.name);toast('🎁 '+g.name+' nhận quà lớn! +10 ⭐');render()}
 function chooseTable(i){let g=guests[guests.length-1];if(!g)return toast('Hãy cho khách vào quán trước');if(guests.filter(x=>x.table===i).length>=4)return toast('Bàn '+i+' đã đủ chỗ');g.table=i;render();toast(g.name+' chuyển sang Bàn '+i)}
 function toggleFullscreen(){if(!document.fullscreenElement)document.getElementById('game').requestFullscreen?.();else document.exitFullscreen?.()}
+
 setInterval(()=>{elapsed++;document.getElementById('clock').textContent=String(Math.floor(elapsed/60)).padStart(2,'0')+':'+String(elapsed%60).padStart(2,'0')},1000);
-['Quốc Anh','Bé Bông','Hoàng Lộc','Tèo em'].forEach((n,i)=>setTimeout(()=>addGuest(n),350+i*450));
 render();
+initGame();
+
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();if(e.key==='Enter'&&document.getElementById('joinModal').classList.contains('open'))joinGuest();if(e.key==='Enter'&&document.getElementById('commentModal').classList.contains('open'))sendComment()});
 </script></body></html>
