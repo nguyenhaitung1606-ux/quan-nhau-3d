@@ -78,7 +78,7 @@ button:active{transform:translateY(3px);box-shadow:0 1px 0 #79501c}
 <script>
 const SUPABASE_URL = 'https://qsobocwyjbnvyfgteggh.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_47139Ctv-4Z0XYltOhfiew_VdyVIAJB';
-const supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+let supabase = null;
 
 const names=['Minh Anh','Hoàng Lộc','Bé Bông','Quốc Anh','Thiên Kim','Hiếu Điện Nước','Tèo em','Lạc Vĩnh'];
 const emojis=['🧑🏻','👨🏻','👩🏻','🧔🏻','👨🏽','👩🏼','🧑🏽','👨🏼'];
@@ -118,10 +118,15 @@ async function fetchPlayersFromDB(){
 }
 
 async function initGame(){
-  if(supabase){
-    const { data, error } = await supabase.auth.signInAnonymously();
-    if(!error && data && data.user){
-      myPlayerId = data.user.id;
+  if(window.supabase){
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    try {
+      const { data, error } = await supabase.auth.signInAnonymously();
+      if(!error && data && data.user){
+        myPlayerId = data.user.id;
+      }
+    } catch(e) {
+      console.error(e);
     }
     await fetchPlayersFromDB();
     supabase
@@ -141,7 +146,7 @@ async function addGuest(name){
   let randomEmoji = emojis[Math.floor(Math.random()*emojis.length)];
   
   if(supabase && myPlayerId){
-    await supabase.from('game_players').upsert({
+    const { error } = await supabase.from('game_players').upsert({
       id: myPlayerId,
       name: name,
       table_id: table,
@@ -149,8 +154,13 @@ async function addGuest(name){
       drink: '',
       updated_at: new Date()
     });
+    if(error){
+      console.error('Lỗi khi lưu Supabase:', error);
+      // Nếu lỗi database/RLS thì vẫn cho chơi offline tạm
+      guests.push({id: myPlayerId, name, table, emoji: randomEmoji, drink:''});
+    }
   } else {
-    guests.push({name,table,emoji:randomEmoji,drink:''});
+    guests.push({name, table, emoji: randomEmoji, drink:''});
   }
   
   scores[name]??=0;
@@ -160,11 +170,30 @@ async function addGuest(name){
   toast('🍻 '+name+' đã vào Bàn '+table);
 }
 
-function openJoin(){document.getElementById('joinModal').classList.add('open');document.getElementById('joinName').focus()}
-function openComment(){document.getElementById('commentModal').classList.add('open');document.getElementById('commentText').focus()}
-function closeModal(){document.querySelectorAll('.modal').forEach(x=>x.classList.remove('open'))}
-function joinGuest(){let n=document.getElementById('joinName').value.trim();if(!n)return toast('Nhập tên trước nhé!');addGuest(n);closeModal()}
-function sendComment(){let s=document.getElementById('commentText').value.trim();if(!s)return;processComment(s);document.getElementById('commentText').value='';closeModal()}
+function openJoin(){
+  document.getElementById('joinModal').classList.add('open');
+  document.getElementById('joinName').focus();
+}
+function openComment(){
+  document.getElementById('commentModal').classList.add('open');
+  document.getElementById('commentText').focus();
+}
+function closeModal(){
+  document.querySelectorAll('.modal').forEach(x=>x.classList.remove('open'));
+}
+function joinGuest(){
+  let n=document.getElementById('joinName').value.trim();
+  if(!n) return toast('Nhập tên trước nhé!');
+  addGuest(n);
+  closeModal();
+}
+function sendComment(){
+  let s=document.getElementById('commentText').value.trim();
+  if(!s)return;
+  processComment(s);
+  document.getElementById('commentText').value='';
+  closeModal();
+}
 function processComment(raw){
   let s=raw.trim(),low=s.toLowerCase();addFeed('💬 '+s);
   let name=s.split(/\s+/)[0].replace(/^@/,'');
