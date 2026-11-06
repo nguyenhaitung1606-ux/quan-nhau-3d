@@ -50,9 +50,10 @@ button.secondary{background:linear-gradient(#fff,#c8d5d1)}button.danger{backgrou
 button:active{transform:translateY(3px);box-shadow:0 1px 0 #79501c}
 .toast{position:absolute;z-index:30;left:50%;top:48%;transform:translate(-50%,-50%);padding:14px 22px;background:#381e12eF;border:2px solid var(--gold);border-radius:14px;text-align:center;font-weight:900;opacity:0;pointer-events:none;transition:.25s;max-width:80vw}
 .toast.show{opacity:1;top:43%}
-.modal{position:absolute;z-index:40;inset:0;background:#000a;display:none;place-items:center;padding:18px}
-.modal.open{display:grid}.dialog{width:min(480px,95vw);background:#241811;border:2px solid var(--gold);border-radius:18px;padding:20px;box-shadow:0 20px 60px #000}
-.dialog h2{margin:0 0 12px;color:var(--gold)}.dialog input{width:100%;padding:12px;border-radius:9px;border:1px solid #a67b43;margin:7px 0 13px;font-size:16px}
+.modal{position:absolute;z-index:40;inset:0;background:rgba(0,0,0,0.7);display:none;place-items:center;padding:18px}
+.modal.open{display:grid !important}
+.dialog{width:min(480px,95vw);background:#241811;border:2px solid var(--gold);border-radius:18px;padding:20px;box-shadow:0 20px 60px #000;position:relative;z-index:50}
+.dialog h2{margin:0 0 12px;color:var(--gold)}.dialog input{width:100%;padding:12px;border-radius:9px;border:1px solid #a67b43;margin:7px 0 13px;font-size:16px;background:#17120e;color:#fff}
 .dialog p{color:#e6d5bd;font-size:13px;line-height:1.5}
 .footnote{position:absolute;bottom:88px;left:50%;transform:translateX(-50%);font-size:11px;color:#e9e1cfaa;white-space:nowrap}
 @media(max-width:700px){.leader{top:65px;width:155px}.feed{top:65px;width:155px}.tables{inset:39% 0 8%;gap:0 1%}.top{height:37%}.guestname{font-size:8px}.stats{top:54px;right:10px}.brand{max-width:55%;line-height:1.2}.controls{bottom:8px}.controls button{padding:8px;font-size:11px}.footnote{display:none}}
@@ -69,13 +70,18 @@ button:active{transform:translateY(3px);box-shadow:0 1px 0 #79501c}
  <div class="tables" id="tables"></div>
  <div class="footnote">Đồng bộ Realtime Supabase kết nối nhiều người chơi cùng lúc.</div>
  <div class="controls">
-  <button onclick="openJoin()">➕ Vào quán</button><button onclick="simulate('bia')">🍺 Gọi bia</button><button onclick="simulate('đậu phộng')">🥜 Gọi đậu phộng</button><button onclick="gift()">🎁 Tặng quà</button><button class="secondary" onclick="openComment()">💬 Thử bình luận</button><button class="secondary" onclick="toggleFullscreen()">⛶ Toàn màn hình</button>
+  <button type="button" onclick="openJoin()">➕ Vào quán</button><button type="button" onclick="simulate('bia')">🍺 Gọi bia</button><button type="button" onclick="simulate('đậu phộng')">🥜 Gọi đậu phộng</button><button type="button" onclick="gift()">🎁 Tặng quà</button><button type="button" class="secondary" onclick="openComment()">💬 Thử bình luận</button><button type="button" class="secondary" onclick="toggleFullscreen()">⛶ Toàn màn hình</button>
  </div>
  <div class="toast" id="toast"></div>
- <div class="modal" id="joinModal"><div class="dialog"><h2>🍻 Vào quán nhậu</h2><p>Nhập tên hiển thị. Nhân vật sẽ ngồi vào bàn còn chỗ.</p><input id="joinName" maxlength="18" placeholder="Tên TikTok của bạn"><button onclick="joinGuest()">Vào quán ngay</button> <button class="secondary" onclick="closeModal()">Đóng</button></div></div>
- <div class="modal" id="commentModal"><div class="dialog"><h2>💬 Mô phỏng bình luận</h2><p>Thử nhập: “Tùng”, “bia”, “đậu phộng”, “vào quán”.</p><input id="commentText" placeholder="Nhập bình luận..."><button onclick="sendComment()">Gửi bình luận</button> <button class="secondary" onclick="closeModal()">Đóng</button></div></div>
+ <div class="modal" id="joinModal"><div class="dialog"><h2>🍻 Vào quán nhậu</h2><p>Nhập tên hiển thị. Nhân vật sẽ ngồi vào bàn còn chỗ.</p><input id="joinName" maxlength="18" placeholder="Tên TikTok của bạn"><button type="button" onclick="joinGuest()">Vào quán ngay</button> <button type="button" class="secondary" onclick="closeModal()">Đóng</button></div></div>
+ <div class="modal" id="commentModal"><div class="dialog"><h2>💬 Mô phỏng bình luận</h2><p>Thử nhập: “Tùng”, “bia”, “đậu phộng”, “vào quán”.</p><input id="commentText" placeholder="Nhập bình luận..."><button type="button" onclick="sendComment()">Gửi bình luận</button> <button type="button" class="secondary" onclick="closeModal()">Đóng</button></div></div>
 </div>
 <script>
+window.onerror = function(msg, url, line) {
+  console.log("Error: " + msg + " script: " + url + " line: " + line);
+  return false;
+};
+
 const SUPABASE_URL = 'https://qsobocwyjbnvyfgteggh.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_47139Ctv-4Z0XYltOhfiew_VdyVIAJB';
 let supabase = null;
@@ -84,7 +90,10 @@ const names=['Minh Anh','Hoàng Lộc','Bé Bông','Quốc Anh','Thiên Kim','Hi
 const emojis=['🧑🏻','👨🏻','👩🏻','🧔🏻','👨🏽','👩🏼','🧑🏽','👨🏼'];
 let guests=[],scores={},coins=0,elapsed=0,myPlayerId=null;
 const tableRoot=document.getElementById('tables');
-for(let i=1;i<=6;i++){tableRoot.insertAdjacentHTML('beforeend',`<div class="table" id="table${i}" onclick="chooseTable(${i})"><div class="tablelabel">BÀN ${i} · <span id="seat${i}">0/4</span></div><div class="seats" id="seats${i}"></div><div class="top"></div><div class="leg l"></div><div class="leg r"></div><div class="food" id="food${i}">🍲</div></div>`)}
+
+for(let i=1;i<=6;i++){
+  tableRoot.insertAdjacentHTML('beforeend',`<div class="table" id="table${i}" onclick="chooseTable(${i})"><div class="tablelabel">BÀN ${i} · <span id="seat${i}">0/4</span></div><div class="seats" id="seats${i}"></div><div class="top"></div><div class="leg l"></div><div class="leg r"></div><div class="food" id="food${i}">🍲</div></div>`);
+}
 
 function toast(s){let t=document.getElementById('toast');t.textContent=s;t.classList.add('show');clearTimeout(window.tt);window.tt=setTimeout(()=>t.classList.remove('show'),1900)}
 function addFeed(s){let f=document.getElementById('feed');f.insertAdjacentHTML('afterbegin',`<div class="feedline">${new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})} · ${esc(s)}</div>`);while(f.children.length>5)f.lastChild.remove()}
@@ -102,39 +111,68 @@ function render(){
   document.getElementById('leader').innerHTML=top.length?top.map(([n,v],i)=>`<div class="rank"><span>${i+1}. ${esc(n)}</span><b>${v} ⭐</b></div>`).join(''):'<div class="rank">Chưa có khách xếp hạng</div>';
 }
 
+function openJoin(){
+  var m = document.getElementById('joinModal');
+  if(m) {
+    m.classList.add('open');
+    m.style.display = 'grid';
+    var inp = document.getElementById('joinName');
+    if(inp) inp.focus();
+  }
+}
+
+function openComment(){
+  var m = document.getElementById('commentModal');
+  if(m) {
+    m.classList.add('open');
+    m.style.display = 'grid';
+    var inp = document.getElementById('commentText');
+    if(inp) inp.focus();
+  }
+}
+
+function closeModal(){
+  document.querySelectorAll('.modal').forEach(x => {
+    x.classList.remove('open');
+    x.style.display = 'none';
+  });
+}
+
 async function fetchPlayersFromDB(){
   if(!supabase) return;
-  const { data, error } = await supabase.from('game_players').select('*');
-  if(!error && data){
-    guests = data.map(item => ({
-      id: item.id,
-      name: item.name || 'Khách',
-      table: item.table_id || 1,
-      emoji: item.emoji || '🧑🏻',
-      drink: item.drink || ''
-    }));
-    render();
-  }
+  try {
+    const { data, error } = await supabase.from('game_players').select('*');
+    if(!error && data){
+      guests = data.map(item => ({
+        id: item.id,
+        name: item.name || 'Khách',
+        table: item.table_id || 1,
+        emoji: item.emoji || '🧑🏻',
+        drink: item.drink || ''
+      }));
+      render();
+    }
+  } catch(e) { console.error(e); }
 }
 
 async function initGame(){
   if(window.supabase){
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     try {
+      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
       const { data, error } = await supabase.auth.signInAnonymously();
       if(!error && data && data.user){
         myPlayerId = data.user.id;
       }
+      await fetchPlayersFromDB();
+      supabase
+        .channel('room-game-sync')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'game_players' }, payload => {
+          fetchPlayersFromDB();
+        })
+        .subscribe();
     } catch(e) {
       console.error(e);
     }
-    await fetchPlayersFromDB();
-    supabase
-      .channel('room-game-sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'game_players' }, payload => {
-        fetchPlayersFromDB();
-      })
-      .subscribe();
   }
 }
 
@@ -146,17 +184,19 @@ async function addGuest(name){
   let randomEmoji = emojis[Math.floor(Math.random()*emojis.length)];
   
   if(supabase && myPlayerId){
-    const { error } = await supabase.from('game_players').upsert({
-      id: myPlayerId,
-      name: name,
-      table_id: table,
-      emoji: randomEmoji,
-      drink: '',
-      updated_at: new Date()
-    });
-    if(error){
-      console.error('Lỗi khi lưu Supabase:', error);
-      // Nếu lỗi database/RLS thì vẫn cho chơi offline tạm
+    try {
+      const { error } = await supabase.from('game_players').upsert({
+        id: myPlayerId,
+        name: name,
+        table_id: table,
+        emoji: randomEmoji,
+        drink: '',
+        updated_at: new Date()
+      });
+      if(error){
+        guests.push({id: myPlayerId, name, table, emoji: randomEmoji, drink:''});
+      }
+    } catch(e) {
       guests.push({id: myPlayerId, name, table, emoji: randomEmoji, drink:''});
     }
   } else {
@@ -170,17 +210,6 @@ async function addGuest(name){
   toast('🍻 '+name+' đã vào Bàn '+table);
 }
 
-function openJoin(){
-  document.getElementById('joinModal').classList.add('open');
-  document.getElementById('joinName').focus();
-}
-function openComment(){
-  document.getElementById('commentModal').classList.add('open');
-  document.getElementById('commentText').focus();
-}
-function closeModal(){
-  document.querySelectorAll('.modal').forEach(x=>x.classList.remove('open'));
-}
 function joinGuest(){
   let n=document.getElementById('joinName').value.trim();
   if(!n) return toast('Nhập tên trước nhé!');
@@ -219,7 +248,7 @@ function toggleFullscreen(){if(!document.fullscreenElement)document.getElementBy
 
 setInterval(()=>{elapsed++;document.getElementById('clock').textContent=String(Math.floor(elapsed/60)).padStart(2,'0')+':'+String(elapsed%60).padStart(2,'0')},1000);
 render();
-initGame();
+setTimeout(initGame, 300);
 
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();if(e.key==='Enter'&&document.getElementById('joinModal').classList.contains('open'))joinGuest();if(e.key==='Enter'&&document.getElementById('commentModal').classList.contains('open'))sendComment()});
 </script></body></html>
